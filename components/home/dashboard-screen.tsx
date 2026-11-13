@@ -8,6 +8,7 @@ import { QuizSection } from "@/components/home/quiz-section";
 import { ResponseAnalysisSection } from "@/components/home/response-analysis-section";
 import { ScenarioPracticeSection } from "@/components/home/scenario-practice-section";
 import { VocabularySection } from "@/components/home/vocabulary-section";
+import type { ChatFeedback } from "@/lib/api";
 import type {
   ConversationVocabularyItem,
   DailyCheck,
@@ -52,6 +53,7 @@ export function DashboardScreen({
 }: DashboardScreenProps) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("practice");
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [feedback, setFeedback] = useState<ChatFeedback | null>(null);
 
   return (
     <section className="flex h-[100dvh] overflow-y-auto px-3 py-3 lg:overflow-hidden sm:px-4 sm:py-4">
@@ -138,7 +140,11 @@ export function DashboardScreen({
                     typedMessage={typedMessage}
                     onRoleChange={onRoleChange}
                     onTypedMessageChange={onTypedMessageChange}
-                    onSubmit={() => setHasSubmitted(true)}
+                    vocabulary={vocabulary}
+                    onSubmit={(result) => {
+                      setFeedback(result);
+                      setHasSubmitted(true);
+                    }}
                   />
                 </div>
                 <div className="grid gap-3 xl:grid-rows-[1fr_0.9fr] lg:min-h-0">
@@ -146,7 +152,7 @@ export function DashboardScreen({
                     <VocabularySection t={t} lang={lang} vocabulary={vocabulary} hasSubmitted={hasSubmitted} />
                   </div>
                   <div className="rounded-[1.5rem] lg:min-h-0 lg:overflow-auto">
-                    <ResponseAnalysisSection t={t} hasSubmitted={hasSubmitted} />
+                    <ResponseAnalysisSection t={t} feedback={feedback} />
                   </div>
                 </div>
               </div>

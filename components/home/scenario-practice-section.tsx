@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { roleOptions } from "@/data/role-options";
+import { getChatFeedback, speak, type ChatFeedback } from "@/lib/api";
 import { useVoiceRecognition } from "@/lib/useVoiceRecognition";
-import type { Role, TranslationContent } from "@/types/app";
+import type { ConversationVocabularyItem, Role, TranslationContent } from "@/types/app";
 
 interface ScenarioPracticeSectionProps {
   t: TranslationContent;
@@ -11,7 +12,8 @@ interface ScenarioPracticeSectionProps {
   typedMessage: string;
   onRoleChange: (role: Role) => void;
   onTypedMessageChange: (value: string) => void;
-  onSubmit: () => void;
+  vocabulary: ConversationVocabularyItem[];
+  onSubmit: (feedback: ChatFeedback) => void;
 }
 
 export function ScenarioPracticeSection({
@@ -20,10 +22,14 @@ export function ScenarioPracticeSection({
   typedMessage,
   onRoleChange,
   onTypedMessageChange,
+  vocabulary,
   onSubmit,
 }: ScenarioPracticeSectionProps) {
   const scenario = t.scenario[role];
-  const [showAiResponse, setShowAiResponse] = useState(false);
+  const [feedback, setFeedback] = useState<ChatFeedback | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const showAiResponse = feedback !== null;
 
   const {
     isListening,
@@ -51,9 +57,36 @@ export function ScenarioPracticeSection({
     }
   };
 
-  const handleSubmit = () => {
-    setShowAiResponse(true);
-    onSubmit();
+  const playReply = (text: string) => {
+    // Audio is a bonus: if text-to-speech fails, the written reply is still shown.
+    speak(text).catch(() => setApiError("Couldn't play audio. You can still read the reply."));
+  };
+
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setApiError(null);
+    try {
+      const result = await getChatFeedback({
+        role,
+        scenario: scenario.opening,
+        message: typedMessage,
+        targetWords: vocabulary.map((item) => item.word),
+      });
+      setFeedback(result);
+      onSubmit(result);
+      playReply(result.reply);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTryAgain = () => {
+    setFeedback(null);
+    setApiError(null);
+    onTypedMessageChange("");
+    resetTranscript();
   };
 
   return (
@@ -169,9 +202,10 @@ export function ScenarioPracticeSection({
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="flex-1 rounded-lg bg-green-500 text-white px-4 py-2 text-sm font-semibold hover:bg-green-600 transition"
+                  disabled={isLoading}
+                  className="flex-1 rounded-lg bg-green-500 text-white px-4 py-2 text-sm font-semibold hover:bg-green-600 transition disabled:opacity-60"
                 >
-                  ✓ Submit
+                  {isLoading ? "Thinking..." : "✓ Submit"}
                 </button>
                 <button
                   type="button"
@@ -186,46 +220,62 @@ export function ScenarioPracticeSection({
               </div>
             )}
 
-            {/* AI Response Section - Only show when submit was clicked */}
-            {showAiResponse && typedMessage.trim() && (
-              <div className="rounded-3xl rounded-bl-md bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
-                <p className="font-semibold">{t.aiResponse}</p>
-                <p className="mt-2">{scenario.aiReply}</p>
+            {apiError && (
+              <p className="rounded bg-red-100 p-2 text-xs text-red-600">{apiError}</p>
+            )}
 
-                {/* Response Analysis Section */}
+            {/* AI Response Section - filled in by Claude via /api/chat */}
+            {feedback && (
+              <div className="rounded-3xl rounded-bl-md bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold">{t.aiResponse}</p>
+                  <button
+                    type="button"
+                    onClick={() => playReply(feedback.reply)}
+                    className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    🔊 Play again
+                  </button>
+                </div>
+                <p className="mt-2">{feedback.reply}</p>
+
                 <div className="mt-4 pt-4 border-t border-emerald-200 space-y-3">
                   <p className="font-semibold text-emerald-900">📊 Analysis of Your Response:</p>
 
                   <div className="bg-white/60 rounded-lg p-3 space-y-2">
                     <div>
                       <p className="text-xs font-semibold text-emerald-800">✓ Strengths:</p>
-                      <p className="text-xs text-emerald-700 mt-1">• Clear communication of the issue</p>
-                      <p className="text-xs text-emerald-700">• Appropriate tone for the context</p>
+                      {feedback.strengths.map((item) => (
+                        <p key={item} className="text-xs text-emerald-700 mt-1">• {item}</p>
+                      ))}
                     </div>
 
                     <div>
                       <p className="text-xs font-semibold text-emerald-800">💡 Tips for Improvement:</p>
-                      <p className="text-xs text-emerald-700 mt-1">• Try adding a specific reason</p>
-                      <p className="text-xs text-emerald-700">• Consider asking politely for confirmation</p>
+                      {feedback.tips.map((item) => (
+                        <p key={item} className="text-xs text-emerald-700 mt-1">• {item}</p>
+                      ))}
                     </div>
 
                     <div>
                       <p className="text-xs font-semibold text-emerald-800">🎯 Vocabulary Used:</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        <span className="inline-block bg-emerald-200 text-emerald-900 px-2 py-1 rounded text-xs">appointment</span>
-                        <span className="inline-block bg-emerald-200 text-emerald-900 px-2 py-1 rounded text-xs">shift</span>
-                        <span className="inline-block bg-emerald-200 text-emerald-900 px-2 py-1 rounded text-xs">possible</span>
+                        {feedback.vocabularyUsed.length > 0 ? (
+                          feedback.vocabularyUsed.map((word) => (
+                            <span key={word} className="inline-block bg-emerald-200 text-emerald-900 px-2 py-1 rounded text-xs">
+                              {word}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-emerald-700">None yet - try one of the target words!</span>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowAiResponse(false);
-                      onTypedMessageChange("");
-                      resetTranscript();
-                    }}
+                    onClick={handleTryAgain}
                     className="w-full mt-3 rounded-lg bg-emerald-600 text-white px-3 py-2 text-xs font-semibold hover:bg-emerald-700 transition"
                   >
                     Try Again

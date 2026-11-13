@@ -164,3 +164,20 @@ Navigate to `http://localhost:3000` to view the MVP in action!
 2. **Text-To-Speech (TTS):** Integrate ElevenLabs standard voices for AI character outputs.
 3. **Speech-To-Text (STT):** Plug in a browser MediaRecorder or a Whisper endpoint to ingest microphone answers automatically. 
 4. **Backend State:** Implement user authentication and persistent progress saving.
+
+## Live AI integration (Medha's fork)
+
+The scenario practice loop is now live, not mocked:
+
+1. The learner speaks (browser Web Speech API) or types.
+2. `POST /api/chat` sends the message, role, scenario and target words to the **Claude API** (`claude-haiku-5-5`) with a JSON schema (structured outputs), and gets back the character's reply plus strengths, tips and vocabulary used.
+3. `POST /api/tts` sends the reply to **ElevenLabs** text-to-speech (`eleven_flash_v2_5`) and streams MP3 audio back to the browser.
+
+Both API keys stay server-side in Next.js route handlers. The app is deployed on Vercel (GitHub Pages can't run server code).
+
+### Run locally
+```bash
+cp .env.example .env.local   # add your ANTHROPIC_API_KEY and ELEVENLABS_API_KEY
+npm install
+npm run dev
+```

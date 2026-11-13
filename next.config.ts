@@ -1,12 +1,11 @@
 import type { NextConfig } from "next";
 
+// No `output: 'export'` any more: the app now has server-side API routes
+// (app/api/chat, app/api/tts), so it needs a server — deployed on Vercel.
 const nextConfig: NextConfig = {
-  output: 'export',
   images: {
     unoptimized: true,
   },
-  basePath: '/Sprout_voice_input_AItraining',
-  assetPrefix: '/Sprout_voice_input_AItraining/',
 };
 
 export default nextConfig;
